@@ -1,5 +1,7 @@
 # CephFS exporter
 
+[![build](https://github.com/dankeder/prometheus-cephfs-exporter/actions/workflows/build.yaml/badge.svg)](https://github.com/dankeder/prometheus-cephfs-exporter/actions/workflows/build.yaml)
+
 Prometheus exporter for CephFS metrics. Currently exposed metrics:
 
 - `cephfs_subvolume_quota_bytes` for all subvolumes of all CephFS volumes
