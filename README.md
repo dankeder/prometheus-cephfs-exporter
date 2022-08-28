@@ -11,7 +11,7 @@ Prometheus exporter for CephFS metrics. Currently exposed metrics:
 ## Build
 
 ```
-go build
+make build
 ```
 
 
