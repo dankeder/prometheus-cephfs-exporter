@@ -1,0 +1,44 @@
+---
+name: build
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Setup go environment
+        uses: actions/setup-go@v3
+        with:
+          go-version: ">=1.18.5"
+      - name: Install dependencies
+        run: sudo apt-get install -y librados-dev
+      - name: Build
+        run: go build
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: cephfs_exporter-${{github.ref_name}}
+          path: ./cephfs_exporter
+
+  release:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+        with:
+          name: cephfs_exporter-${{github.ref_name}}
+      - name: Release
+        run: gh release create ${{github.ref_name}} ./cephfs_exporter
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    needs: build
