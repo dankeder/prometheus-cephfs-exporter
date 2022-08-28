@@ -16,11 +16,11 @@ jobs:
       - name: Setup go environment
         uses: actions/setup-go@v3
         with:
-          go-version: ">=1.18.5"
+          go-version: '>=1.18.5'
       - name: Install dependencies
         run: sudo apt-get install -y librados-dev
       - name: Build
-        run: go build
+        run: go build -ldflags='-X main.version=${{ github.ref_name }}'
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:

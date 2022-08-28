@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net/http"
 
@@ -14,6 +15,8 @@ const namespace = "cephfs"
 
 var (
 	listenAddress = flag.String("web.listen-address", ":9939", "Address to listen on")
+
+	printVersion = flag.Bool("version", false, "Print version")
 
 	labels = []string{"volume", "subvolume"}
 
@@ -30,6 +33,8 @@ var (
 		labels,
 		nil,
 	)
+
+	version = "unknown"
 )
 
 type CephFSExporter struct{}
@@ -80,6 +85,11 @@ func (e *CephFSExporter) Collect(ch chan<- prometheus.Metric) {
 
 func main() {
 	flag.Parse()
+
+	if *printVersion {
+		fmt.Printf("%s\n", version)
+		return
+	}
 
 	exporter := NewCephFSExporter()
 	prometheus.MustRegister(exporter)
