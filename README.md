@@ -18,7 +18,7 @@ go build
 Run, optionally specify address/port where to listen for requests:
 
 ```
-./cephfs_exporter --web.listen-address :9939
+./cephfs_exporter -web.listen-address :9939
 ```
 
 `cephfs_exporter` is using the default ceph configuration file in
