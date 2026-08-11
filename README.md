@@ -6,6 +6,8 @@ Prometheus exporter for CephFS metrics. Currently exposed metrics:
 
 - `cephfs_subvolume_quota_bytes` for all subvolumes of all CephFS volumes
 - `cephfs_subvolume_used_bytes` for all subvolumes of all CephFS volumes
+- `cephfs_subvolumegroup_quota_bytes` for all subvolumegroups of all CephFS volumes
+- `cephfs_subvolumegroup_used_bytes` for all subvolumegroups of all CephFS volumes
 
 
 ## Build
