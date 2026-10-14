@@ -7,6 +7,7 @@ import (
 	"net/http"
 
 	"github.com/ceph/go-ceph/cephfs/admin"
+	"github.com/ceph/go-ceph/rados"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -18,7 +19,8 @@ var (
 
 	printVersion = flag.Bool("version", false, "Print version")
 
-	labels = []string{"volume", "subvolume"}
+	labels      = []string{"volume", "group", "subvolume"}
+	groupLabels = []string{"volume", "group"}
 
 	cephfsSubvolumeUsedBytes = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "subvolume", "used_bytes"),
@@ -34,6 +36,20 @@ var (
 		nil,
 	)
 
+	cephfsSubvolumeGroupUsedBytes = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "subvolumegroup", "used_bytes"),
+		"Used space in a CephFS subvolume group.",
+		groupLabels,
+		nil,
+	)
+
+	cephfsSubvolumeGroupQuotaBytes = prometheus.NewDesc(
+		prometheus.BuildFQName(namespace, "subvolumegroup", "quota_bytes"),
+		"Size (quota) of the CephFS subvolume group.",
+		groupLabels,
+		nil,
+	)
+
 	version = "unknown"
 )
 
@@ -46,10 +62,26 @@ func NewCephFSExporter() *CephFSExporter {
 func (e *CephFSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- cephfsSubvolumeUsedBytes
 	ch <- cephfsSubvolumeQuotaBytes
+	ch <- cephfsSubvolumeGroupUsedBytes
+	ch <- cephfsSubvolumeGroupQuotaBytes
+}
+
+func newFSAdmin() (*admin.FSAdmin, error) {
+	conn, err := rados.NewConn()
+	if err != nil {
+		return nil, err
+	}
+	if err := conn.ReadDefaultConfigFile(); err != nil {
+		return nil, err
+	}
+	if err := conn.Connect(); err != nil {
+		return nil, err
+	}
+	return admin.NewFromConn(conn), nil
 }
 
 func (e *CephFSExporter) Collect(ch chan<- prometheus.Metric) {
-	fsa, err := admin.New()
+	fsa, err := newFSAdmin()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -59,25 +91,55 @@ func (e *CephFSExporter) Collect(ch chan<- prometheus.Metric) {
 	if err != nil {
 		log.Fatalf("cephfs volume list failed: %s", err)
 	}
+	log.Printf("DEBUG: found %d volume(s): %v", len(volumes), volumes)
 
 	for _, volume := range volumes {
-		// Get Cephfs subvolumes
-		subvolumes, err := fsa.ListSubVolumes(volume, "")
+		// Get CephFS subvolume groups (named groups only, default group "" is added separately)
+		groups, err := fsa.ListSubVolumeGroups(volume)
 		if err != nil {
-			log.Fatalf("cephfs subvolume list failed: %s", err)
+			log.Fatalf("cephfs subvolume group list failed: %s", err)
 		}
+		log.Printf("DEBUG: volume %q: found %d group(s): %v", volume, len(groups), groups)
 
-		for _, subvolume := range subvolumes {
-			subvolumeInfo, err := fsa.SubVolumeInfo(volume, "", subvolume)
-			if err != nil {
-				log.Fatalf("cephfs subvolume info failed: %s", err)
+		// Always include the default group
+		groups = append([]string{""}, groups...)
+
+		for _, group := range groups {
+			// Get CephFS subvolume group info (only for named groups)
+			if group != "" {
+				groupInfo, err := fsa.SubVolumeGroupInfo(volume, group)
+				if err != nil {
+					log.Fatalf("cephfs subvolumegroup info failed: %s", err)
+				}
+				log.Printf("DEBUG: volume %q group %q: used=%d", volume, group, groupInfo.BytesUsed)
+
+				ch <- prometheus.MustNewConstMetric(cephfsSubvolumeGroupUsedBytes, prometheus.GaugeValue, float64(groupInfo.BytesUsed), volume, group)
+
+				groupBytesQuota, ok := groupInfo.BytesQuota.(admin.ByteCount)
+				if ok {
+					ch <- prometheus.MustNewConstMetric(cephfsSubvolumeGroupQuotaBytes, prometheus.GaugeValue, float64(groupBytesQuota), volume, group)
+				}
 			}
 
-			ch <- prometheus.MustNewConstMetric(cephfsSubvolumeUsedBytes, prometheus.GaugeValue, float64(subvolumeInfo.BytesUsed), volume, subvolume)
+			// Get CephFS subvolumes
+			subvolumes, err := fsa.ListSubVolumes(volume, group)
+			if err != nil {
+				log.Fatalf("cephfs subvolume list failed: %s", err)
+			}
+			log.Printf("DEBUG: volume %q group %q: found %d subvolume(s): %v", volume, group, len(subvolumes), subvolumes)
 
-			bytesQuota, ok := subvolumeInfo.BytesQuota.(admin.ByteCount)
-			if ok {
-				ch <- prometheus.MustNewConstMetric(cephfsSubvolumeQuotaBytes, prometheus.GaugeValue, float64(bytesQuota), volume, subvolume)
+			for _, subvolume := range subvolumes {
+				subvolumeInfo, err := fsa.SubVolumeInfo(volume, group, subvolume)
+				if err != nil {
+					log.Fatalf("cephfs subvolume info failed: %s", err)
+				}
+
+				ch <- prometheus.MustNewConstMetric(cephfsSubvolumeUsedBytes, prometheus.GaugeValue, float64(subvolumeInfo.BytesUsed), volume, group, subvolume)
+
+				bytesQuota, ok := subvolumeInfo.BytesQuota.(admin.ByteCount)
+				if ok {
+					ch <- prometheus.MustNewConstMetric(cephfsSubvolumeQuotaBytes, prometheus.GaugeValue, float64(bytesQuota), volume, group, subvolume)
+				}
 			}
 		}
 	}

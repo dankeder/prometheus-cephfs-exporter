@@ -1,9 +1,9 @@
 module cephfs_exporter
 
-go 1.18
+go 1.25.0
 
 require (
-	github.com/ceph/go-ceph v0.16.0
+	github.com/ceph/go-ceph v0.41.0
 	github.com/prometheus/client_golang v1.12.2
 )
 
@@ -15,6 +15,6 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	golang.org/x/sys v0.0.0-20220114195835-da31bd327af9 // indirect
+	golang.org/x/sys v0.47.0 // indirect
 	google.golang.org/protobuf v1.26.0 // indirect
 )
